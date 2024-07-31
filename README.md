@@ -1,1 +1,1 @@
-# drug-discovery
+# AI + drug discovery
