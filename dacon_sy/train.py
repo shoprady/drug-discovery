@@ -148,7 +148,7 @@ class CustomLoss(tf.keras.losses.Loss):
         # loss로 변환
         loss = 1.0 - score
 
-        return score
+        return loss
 
 
 #===============================================================================
