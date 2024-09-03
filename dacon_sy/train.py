@@ -128,10 +128,7 @@ class CustomLoss(tf.keras.losses.Loss):
     def __init__(self):
         super(CustomLoss, self).__init__()
 
-    def call(self):
-        y_pred = model.predict(train_data.batch(1), verbose=0)[:, 0]
-        y_true = chembl_data.pIC50
-
+    def call(self, y_true, y_pred):
         # pIC50 절대 오차 계산
         absolute_error = tf.abs(y_true - y_pred)
         correct_ratio = tf.reduce_mean(tf.cast(absolute_error <= 0.5, tf.float32))
@@ -147,9 +144,10 @@ class CustomLoss(tf.keras.losses.Loss):
         # Final score
         score = 0.5 * (1 - tf.minimum(normalized_rmse, 1.0)) + 0.5 * correct_ratio
 
-        # Loss로 사용하기 위해 음수로 변환
+        # loss로 변환
         loss = 1.0 - score
-        return loss
+
+        return score
 
 
 #===============================================================================
