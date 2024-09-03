@@ -143,6 +143,7 @@ class CustomLoss(tf.keras.losses.Loss):
 
         # Final score
         score = 0.5 * (1 - tf.minimum(normalized_rmse, 1.0)) + 0.5 * correct_ratio
+        score = tf.clip_by_value(score, 0.0, 1.0)  # inf 방지
 
         # loss로 변환
         loss = 1.0 - score
