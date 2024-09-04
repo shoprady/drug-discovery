@@ -39,6 +39,9 @@ binding.to_csv('./dataset/BindingDB_IC50_dropped.csv', index=False)
 # SMILES&Uniprot 중복 존재할 경우 대회 train 것만 남기기
 #===============================================================================
 
+#binding = pd.read_csv('./dataset/BindingDB_IC50_dropped.csv')
+#competition = pd.read_csv('./open/train.csv')
+
 # 대회 데이터에 Uniprot 열 추가
 competition['Uniprot'] = 'Q9NWZ3'
 
@@ -56,9 +59,29 @@ print("Final shape:", data.shape)
 
 
 #===============================================================================
+# Protein embedding 붙이기
+#===============================================================================
+
+protein = pd.read_csv('./open/uniprot_sequence_bert_embedding.tsv', delimiter='\t', keep_default_na=False)
+protein = protein.rename(columns={'uniprot_id': 'Uniprot'})
+
+# 같은 Uniprot당 여러 개 sequence -> 더 긴 것 남기기
+protein['seq_length'] = protein['sequence'].apply(len)
+protein = protein.loc[protein.groupby('Uniprot')['seq_length'].idxmax()]
+protein = protein.drop(columns=['seq_length'])
+protein = protein.reset_index(drop=True)
+
+# merge
+merged_data = pd.merge(data, protein[['Uniprot', 'sequence']], on='Uniprot', how='left')
+merged_data = merged_data.rename(columns={'sequence': 'Sequence'})
+
+print("Final shape:", merged_data.shape)
+merged_data.to_csv('./dataset/dacon_BindingDB_protein.csv', index=False)
+
+#===============================================================================
 # train test split 하고 저장
 #===============================================================================
 
-train, test = train_test_split(data, test_size=113, random_state=42)
-train.to_csv('./dataset/new_train.csv', index=False)
-test.to_csv('./dataset/new_test.csv', index=False)
+train, test = train_test_split(merged_data, test_size=113, random_state=42)
+train.to_csv('./dataset/new_train_protein.csv', index=False)
+test.to_csv('./dataset/new_test_protein.csv', index=False)
