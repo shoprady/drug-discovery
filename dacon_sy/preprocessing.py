@@ -55,8 +55,8 @@ data.drop_duplicates(subset=['Smiles', 'Uniprot'], inplace=True)
 data.reset_index(drop=True, inplace=True)
 
 data['IC50_nM'] = data['IC50_nM'].astype('float64')
-print("Final shape:", data.shape)
-
+data.to_csv('./dataset/dacon_BindingDB.csv', index=False)
+print("Competition + BindingDB data shape:", data.shape)
 
 #===============================================================================
 # Protein embedding 붙이기
@@ -64,19 +64,22 @@ print("Final shape:", data.shape)
 
 protein = pd.read_csv('./open/uniprot_sequence_bert_embedding.tsv', delimiter='\t', keep_default_na=False)
 protein = protein.rename(columns={'uniprot_id': 'Uniprot'})
+print("Protein data shape:", protein.shape)
 
 # 같은 Uniprot당 여러 개 sequence -> 더 긴 것 남기기
 protein['seq_length'] = protein['sequence'].apply(len)
 protein = protein.loc[protein.groupby('Uniprot')['seq_length'].idxmax()]
 protein = protein.drop(columns=['seq_length'])
 protein = protein.reset_index(drop=True)
+print("Dropped protein data shape:", protein.shape)
 
 # merge
 merged_data = pd.merge(data, protein[['Uniprot', 'sequence']], on='Uniprot', how='left')
 merged_data = merged_data.rename(columns={'sequence': 'Sequence'})
+merged_data = merged_data.dropna(subset=['Sequence'])
 
-print("Final shape:", merged_data.shape)
 merged_data.to_csv('./dataset/dacon_BindingDB_protein.csv', index=False)
+print("Final data shape:", merged_data.shape)
 
 #===============================================================================
 # train test split 하고 저장
