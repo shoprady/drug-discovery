@@ -10,11 +10,11 @@ Original file is located at
 """
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-pip install torch_geometric
+#pip install torch_geometric
 
-pip install rdkit
+#pip install rdkit
 
 import torch
 import torch.nn as nn
@@ -64,20 +64,18 @@ smiles_df = merged_df[['Smiles', 'pIC50']]
 """
 
 my_elements = {
-    1: "H",
-    5: "B",
-    6: "C",
-    7: "N",
-    8: "O",
-    9: "F",
-    11: "Na",
-    15: "P",
-    16: "S",
-    17: "Cl",
-    19: "K",
-    20: "Ca",
-    35: "Br",
-    53: "I"
+    1: "H", 2: "He", 3: "Li", 4: "Be", 5: "B", 6: "C", 7: "N", 8: "O", 9: "F", 10: "Ne",
+    11: "Na", 12: "Mg", 13: "Al", 14: "Si", 15: "P", 16: "S", 17: "Cl", 18: "Ar", 19: "K", 20: "Ca",
+    21: "Sc", 22: "Ti", 23: "V", 24: "Cr", 25: "Mn", 26: "Fe", 27: "Co", 28: "Ni", 29: "Cu", 30: "Zn",
+    31: "Ga", 32: "Ge", 33: "As", 34: "Se", 35: "Br", 36: "Kr", 37: "Rb", 38: "Sr", 39: "Y", 40: "Zr",
+    41: "Nb", 42: "Mo", 43: "Tc", 44: "Ru", 45: "Rh", 46: "Pd", 47: "Ag", 48: "Cd", 49: "In", 50: "Sn",
+    51: "Sb", 52: "Te", 53: "I", 54: "Xe", 55: "Cs", 56: "Ba", 57: "La", 58: "Ce", 59: "Pr", 60: "Nd",
+    61: "Pm", 62: "Sm", 63: "Eu", 64: "Gd", 65: "Tb", 66: "Dy", 67: "Ho", 68: "Er", 69: "Tm", 70: "Yb",
+    71: "Lu", 72: "Hf", 73: "Ta", 74: "W", 75: "Re", 76: "Os", 77: "Ir", 78: "Pt", 79: "Au", 80: "Hg",
+    81: "Tl", 82: "Pb", 83: "Bi", 84: "Po", 85: "At", 86: "Rn", 87: "Fr", 88: "Ra", 89: "Ac", 90: "Th",
+    91: "Pa", 92: "U", 93: "Np", 94: "Pu", 95: "Am", 96: "Cm", 97: "Bk", 98: "Cf", 99: "Es", 100: "Fm",
+    101: "Md", 102: "No", 103: "Lr", 104: "Rf", 105: "Db", 106: "Sg", 107: "Bh", 108: "Hs", 109: "Mt", 110: "Ds",
+    111: "Rg", 112: "Cn", 113: "Nh", 114: "Fl", 115: "Mc", 116: "Lv", 117: "Ts", 118: "Og"
 }
 
 def smiles2graph(sml):
@@ -137,7 +135,6 @@ def prepare_data(smiles_list, protein_embeddings, pIC50_values):
 
         data = Data(x=torch.tensor(nodes, dtype=torch.float32), edge_index=edge_index, y=target)
         data.protein_embedding = protein_embedding
-        print(f"Data {idx}: x size: {data.x.size()}, edge_index size: {data.edge_index.size()}, protein_embedding size: {data.protein_embedding.size()}")
 
         graph_data.append(data)
 
@@ -164,7 +161,6 @@ class GATModel(nn.Module):
         x = F.relu(x)
 
         x = global_mean_pool(x, batch)
-        print(f"Graph Embedding size after pooling: {x.size()}")  # (batch_size, 1024)
 
         protein_embedding = data.protein_embedding  # (flattened) size: [32768]
 
@@ -173,10 +169,8 @@ class GATModel(nn.Module):
         # protein_embedding이 flatten되어 있다면 다시 (batch_size, 1024)
         if protein_embedding.size(0) == batch_size * 1024:
             protein_embedding = protein_embedding.view(x.size(0), -1)
-        print(f"Protein Embedding size after reshape: {protein_embedding.size()}")  # (batch_size, 1024)
 
         combined_vector = torch.cat([x, protein_embedding], dim=1)
-        print(f"Combined Vector size: {combined_vector.size()}")
 
         out = self.fc_out(combined_vector)
         return out
@@ -194,6 +188,9 @@ smiles_df['Smiles'].shape
 gat_model = GATModel(input_dim=len(my_elements), hidden_dim=1024, output_dim=1024)
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(gat_model.parameters(), lr=0.001)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+gat_model = gat_model.to(device)
 
 print(gat_model)
 
