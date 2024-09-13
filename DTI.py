@@ -40,55 +40,23 @@ class Classifier(nn.Sequential):
 
 		self.hidden_dims = config['cls_hidden_dims']
 		layer_size = len(self.hidden_dims) + 1
+		dims = [self.input_dim_drug + self.input_dim_protein] + self.hidden_dims + [1]
+		
+		self.predictor = nn.ModuleList([nn.Linear(dims[i], dims[i+1]) for i in range(layer_size)])
 
-		#dims = [self.input_dim_drug + self.input_dim_protein] + self.hidden_dims + [1]
-		dims_drug = [self.input_dim_drug] + self.hidden_dims + [128]
-		dims_protein = [self.input_dim_protein] + self.hidden_dims + [128]
-
-		#self.predictor = nn.ModuleList([nn.Linear(dims[i], dims[i+1]) for i in range(layer_size)])
-		self.predictor1 = nn.ModuleList([nn.Linear(dims_drug[i], dims_drug[i+1]) for i in range(layer_size)])
-		self.predictor2 = nn.ModuleList([nn.Linear(dims_protein[i], dims_protein[i+1]) for i in range(layer_size)])
-
-###############################################################################
-
-	"""
 	def forward(self, v_D, v_P):
 		# each encoding
 		v_D = self.model_drug(v_D)
 		v_P = self.model_protein(v_P)
 		# concatenate and classify
+		# print(f"v_D: {v_D.shape}, v_P: {v_P.shape}")
 		v_f = torch.cat((v_D, v_P), 1)
 		for i, l in enumerate(self.predictor):
 			if i==(len(self.predictor)-1):
 				v_f = l(v_f)
 			else:
 				v_f = F.relu(self.dropout(l(v_f)))
-
-		print('v_f:', v_f.size())
 		return v_f
-	"""
-
-	def forward(self, v_D, v_P):
-		# each encoding
-		v_D = self.model_drug(v_D)
-		v_P = self.model_protein(v_P)
-
-		for i, l in enumerate(self.predictor1):
-			if i == (len(self.predictor1) - 1):
-				v_D = l(v_D)
-			else:
-				v_D = F.relu(self.dropout(l(v_D)))
-
-		for i, l in enumerate(self.predictor2):
-			if i == (len(self.predictor2) - 1):
-				v_P = l(v_P)
-			else:
-				v_P = F.relu(self.dropout(l(v_P)))
-
-		dot_product = torch.sum(v_D * v_P, dim=1, keepdim=True)
-		return dot_product
-
-###############################################################################
 
 def model_initialize(**config):
 	model = DBTA(**config)
@@ -244,13 +212,10 @@ def virtual_screening(X_repurpose, target, model, drug_names = None, target_name
 	return y_pred
 
 def dgl_collate_func(x):
-	pass
-	"""
 	d, p, y = zip(*x)
 	import dgl
 	d = dgl.batch(d)
 	return d, torch.tensor(p), torch.tensor(y)
-	"""
 
 class DBTA:
 	'''
@@ -260,8 +225,8 @@ class DBTA:
 	def __init__(self, **config):
 		drug_encoding = config['drug_encoding']
 		target_encoding = config['target_encoding']
-
-		if drug_encoding == 'Morgan' or drug_encoding == 'ErG' or drug_encoding=='Pubchem' or drug_encoding=='Daylight' or drug_encoding=='rdkit_2d_normalized' or drug_encoding == 'ESPF':
+		# jungmin: 해당 주석 바로 아래 줄 맨 끝에 KPGT 추가
+		if drug_encoding == 'Morgan' or drug_encoding == 'ErG' or drug_encoding=='Pubchem' or drug_encoding=='Daylight' or drug_encoding=='rdkit_2d_normalized' or drug_encoding == 'ESPF' or drug_encoding == 'KPGT':
 			# Future TODO: support multiple encoding scheme for static input 
 			self.model_drug = MLP(config['input_dim_drug'], config['hidden_dim_drug'], config['mlp_hidden_dims_drug'])
 		elif drug_encoding == 'CNN':
@@ -299,7 +264,8 @@ class DBTA:
 		else:
 			raise AttributeError('Please use one of the available encoding method.')
 
-		if target_encoding == 'AAC' or target_encoding == 'PseudoAAC' or  target_encoding == 'Conjoint_triad' or target_encoding == 'Quasi-seq' or target_encoding == 'ESPF':
+		# jungmin: added ProteinBERT
+		if target_encoding == 'AAC' or target_encoding == 'PseudoAAC' or  target_encoding == 'Conjoint_triad' or target_encoding == 'Quasi-seq' or target_encoding == 'ESPF' or target_encoding == 'ProteinBERT':
 			self.model_protein = MLP(config['input_dim_protein'], config['hidden_dim_protein'], config['mlp_hidden_dims_target'])
 		elif target_encoding == 'CNN':
 			self.model_protein = CNN('protein', **config)
@@ -466,6 +432,7 @@ class DBTA:
 				if self.drug_encoding in ["MPNN", 'Transformer', 'DGL_GCN', 'DGL_NeuralFP', 'DGL_GIN_AttrMasking', 'DGL_GIN_ContextPred', 'DGL_AttentiveFP']:
 					v_d = v_d
 				else:
+					# print(f"v_d: {v_d}")
 					v_d = v_d.float().to(self.device)                
 					#score = self.model(v_d, v_p.float().to(self.device))
                
