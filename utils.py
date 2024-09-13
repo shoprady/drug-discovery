@@ -25,9 +25,6 @@ import os
 import sys
 import pathlib
 
-sys.path.insert(0, '/home/aix23606/jungmin/drug/DTI_DeepPurpose_jungmin/KPGT')
-from KPGT import KPGT_check
-
 this_dir = str(pathlib.Path(__file__).parent.absolute())
 
 MAX_ATOM = 600
@@ -220,7 +217,6 @@ def target2ct(s):
 		features = np.zeros((343, ))
 	return np.array(features)
 
-
 def smiles2mpnnfeature(smiles):
 	## mpn.py::tensorize  
 	'''
@@ -275,11 +271,10 @@ def smiles2mpnnfeature(smiles):
 
 	except: 
 		print('Molecules not found and change to zero vectors..')
-		#fatoms = torch.zeros(0,39)
-		#fbonds = torch.zeros(0,50)
-		#agraph = torch.zeros(0,6)
-		#bgraph = torch.zeros(0,6)
-		return False
+		fatoms = torch.zeros(0,39)
+		fbonds = torch.zeros(0,50)
+		agraph = torch.zeros(0,6)
+		bgraph = torch.zeros(0,6)
 	#fatoms, fbonds, agraph, bgraph = [], [], [], [] 
 	#print(fatoms.shape, fbonds.shape, agraph.shape, bgraph.shape)
 	Natom, Nbond = fatoms.shape[0], fbonds.shape[0]
@@ -347,7 +342,7 @@ def create_fold_setting_cold_drug(df, fold_seed, frac):
 
     train_val = df[~df['SMILES'].isin(drug_drop)]
     
-    drug_drop_val = train_val['SMILES'].drop_duplicates().sample(frac = val_frac/(1-test_frac), 
+    drug_drop_val = train_val['SMILES'].drop_duplicates().sample(frac = val_frac/(1-test_frac),
     															 replace = False, 
     															 random_state = fold_seed).values
     val = train_val[train_val['SMILES'].isin(drug_drop_val)]
@@ -388,42 +383,18 @@ def encode_drug(df_data, drug_encoding, column_name = 'SMILES', save_column_name
 		unique = pd.Series(df_data[column_name].unique()).apply(trans_drug)
 		unique_dict = dict(zip(df_data[column_name].unique(), unique))
 		df_data[save_column_name] = [unique_dict[i] for i in df_data[column_name]]
-  
 	elif drug_encoding == 'Transformer':
 		unique = pd.Series(df_data[column_name].unique()).apply(drug2emb_encoder)
 		unique_dict = dict(zip(df_data[column_name].unique(), unique))
 		df_data[save_column_name] = [unique_dict[i] for i in df_data[column_name]]
-
-#	elif drug_encoding == "KPGT":
-		
-	
-    # elif drug_encoding == "KPGT": #(yak dae encoding ?)
-    #     # pretrained_model load --> model(smile)  ---> feature
-	# 	unique = pd.Series(df_data[column_name].unique()).apply(drug2kpig)
-	# 	unique_dict = dict(zip(df_data[column_name].unique(), unique))
-	# 	df_data[save_column_name] = [unique_dict[i] for i in df_data[column_name]]
-  
 	elif drug_encoding == 'MPNN':
-		unique_values = df_data[column_name].unique()
-		unique = []
-		values_to_remove = []
-		for value in unique_values:
-			transformed_value = smiles2mpnnfeature(value)
-			if transformed_value is False:
-				values_to_remove.append(value)
-			else:
-				unique.append(transformed_value)
-		unique = pd.Series(unique)
-		# Remove the rows from df_data where column_name contains values that returned False
-		df_data = df_data[~df_data[column_name].isin(values_to_remove)].reset_index(drop=True)
+		unique = pd.Series(df_data[column_name].unique()).apply(smiles2mpnnfeature)
 		unique_dict = dict(zip(df_data[column_name].unique(), unique))
 		df_data[save_column_name] = [unique_dict[i] for i in df_data[column_name]]
-  
 	elif drug_encoding == 'ErG':
 		unique = pd.Series(df_data[column_name].unique()).apply(smiles2erg)
 		unique_dict = dict(zip(df_data[column_name].unique(), unique))
 		df_data[save_column_name] = [unique_dict[i] for i in df_data[column_name]]
-  
 	elif drug_encoding in ['DGL_GCN', 'DGL_NeuralFP']:
 		df_data[save_column_name] = df_data[column_name]
 	elif drug_encoding == 'DGL_AttentiveFP':
@@ -432,7 +403,6 @@ def encode_drug(df_data, drug_encoding, column_name = 'SMILES', save_column_name
 		df_data[save_column_name] = df_data[column_name]
 	else:
 		raise AttributeError("Please use the correct drug encoding available!")
- 	
 	return df_data
 
 def encode_protein(df_data, target_encoding, column_name = 'Target Sequence', save_column_name = 'target_encoding'):
@@ -475,14 +445,6 @@ def encode_protein(df_data, target_encoding, column_name = 'Target Sequence', sa
 		AA = pd.Series(df_data[column_name].unique()).apply(protein2emb_encoder)
 		AA_dict = dict(zip(df_data[column_name].unique(), AA))
 		df_data[save_column_name] = [AA_dict[i] for i in df_data[column_name]]
-  
-	# jungmin: added proteinBERT from yakdae
-	elif target_encoding == 'ProteinBERT':
-		# new_train_protein, new_test_protein --> dict = {Sequence: ProteinBERT embedding}
-		AA = pd.Series(df_data[column_name].unique()).apply(protein2BERT)
-		AA_dict = dict(zip(df_data[column_name].unique(), AA))
-		df_data[save_column_name] = [AA_dict[i] for i in df_data[column_name]]
-  
 	else:
 		raise AttributeError("Please use the correct protein encoding available!")
 	return df_data
@@ -1019,11 +981,6 @@ def generate_config(drug_encoding = None, target_encoding = None,
 		base_config['transformer_attention_probs_dropout'] = transformer_attention_probs_dropout
 		base_config['transformer_hidden_dropout_rate'] = transformer_hidden_dropout_rate
 		base_config['hidden_dim_protein'] = transformer_emb_size_target
-	
- 	# 🐵jungmin: added proteinBERT
-	# TODO: 교수님께 확인
-	elif target_encoding == 'ProteinBERT':
-		base_config['input_dim_protein'] = mlp_hidden_dims_target # MLP classifier dim 1
 	elif target_encoding is None:
 		pass
 	else:
@@ -1107,14 +1064,6 @@ def drug2espf(x):
     v1[i1] = 1
     return v1	
 
-# TODO: 🐵
-# def drug2KPGT(smiles):
-    ## Custom function to load yak dae embedding and covert it to feature
-    # SOJUNG
-    ##input: smiles
-    ## output: KPIG feature
-    # load model ()
-
 def protein2espf(x):
     t1 = pbpe.process_line(x).split()  # split
     try:
@@ -1124,23 +1073,6 @@ def protein2espf(x):
     v1 = np.zeros(len(idx2word_p),)
     v1[i1] = 1
     return v1
-
-# jungmin
-# x1: protein sequence
-# v1: embedding --> np.array
-# (1) load dict (Seqeunce existed in new_train_protein and new_test_protein of all protein seq < 2000: {Seq: Emb})
-# v1 = np.array(dic_name[x])
-def protein2BERT(x):
-
-    with open('/home/aix23606/DTI_DeepPurpose/jungmin/proteinBERT.pkl', 'rb') as f:
-        data = pickle.load(f)
-        
-        v1_str = data[x].strip("[]") # data[x] --> "[-1.59092120e-02  1.63246670e-02 -5.66587300e-03 ...]"
-        v1 = np.fromstring(v1_str, sep=' ', dtype=float)
-        # print(f"🐵 v1: {v1}, v1 shape: {v1.shape}") --> (1024, )
-        
-        return v1
-
 
 # '?' padding
 amino_char = ['?', 'A', 'C', 'B', 'E', 'D', 'G', 'F', 'I', 'H', 'K', 'M', 'L', 'O',

@@ -26,7 +26,7 @@ from DeepPurpose.model_helper import Encoder_MultipleLayers, Embeddings
 from DeepPurpose.encoders import *
 
 from torch.utils.tensorboard import SummaryWriter
-device = "cpu"
+
 class Classifier(nn.Sequential):
 	def __init__(self, model_drug, model_protein, **config):
 		super(Classifier, self).__init__()
@@ -40,10 +40,18 @@ class Classifier(nn.Sequential):
 
 		self.hidden_dims = config['cls_hidden_dims']
 		layer_size = len(self.hidden_dims) + 1
-		dims = [self.input_dim_drug + self.input_dim_protein] + self.hidden_dims + [1]
-		
-		self.predictor = nn.ModuleList([nn.Linear(dims[i], dims[i+1]) for i in range(layer_size)])
 
+		#dims = [self.input_dim_drug + self.input_dim_protein] + self.hidden_dims + [1]
+		dims_drug = [self.input_dim_drug] + self.hidden_dims + [128]
+		dims_protein = [self.input_dim_protein] + self.hidden_dims + [128]
+
+		#self.predictor = nn.ModuleList([nn.Linear(dims[i], dims[i+1]) for i in range(layer_size)])
+		self.predictor1 = nn.ModuleList([nn.Linear(dims_drug[i], dims_drug[i+1]) for i in range(layer_size)])
+		self.predictor2 = nn.ModuleList([nn.Linear(dims_protein[i], dims_protein[i+1]) for i in range(layer_size)])
+
+###############################################################################
+
+	"""
 	def forward(self, v_D, v_P):
 		# each encoding
 		v_D = self.model_drug(v_D)
@@ -55,7 +63,32 @@ class Classifier(nn.Sequential):
 				v_f = l(v_f)
 			else:
 				v_f = F.relu(self.dropout(l(v_f)))
+
+		print('v_f:', v_f.size())
 		return v_f
+	"""
+
+	def forward(self, v_D, v_P):
+		# each encoding
+		v_D = self.model_drug(v_D)
+		v_P = self.model_protein(v_P)
+
+		for i, l in enumerate(self.predictor1):
+			if i == (len(self.predictor1) - 1):
+				v_D = l(v_D)
+			else:
+				v_D = F.relu(self.dropout(l(v_D)))
+
+		for i, l in enumerate(self.predictor2):
+			if i == (len(self.predictor2) - 1):
+				v_P = l(v_P)
+			else:
+				v_P = F.relu(self.dropout(l(v_P)))
+
+		dot_product = torch.sum(v_D * v_P, dim=1, keepdim=True)
+		return dot_product
+
+###############################################################################
 
 def model_initialize(**config):
 	model = DBTA(**config)
@@ -211,10 +244,13 @@ def virtual_screening(X_repurpose, target, model, drug_names = None, target_name
 	return y_pred
 
 def dgl_collate_func(x):
+	pass
+	"""
 	d, p, y = zip(*x)
 	import dgl
 	d = dgl.batch(d)
 	return d, torch.tensor(p), torch.tensor(y)
+	"""
 
 class DBTA:
 	'''
